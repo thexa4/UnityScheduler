@@ -78,19 +78,19 @@ public class TaskScheduler
 
     IEnumerator WrapIEnumerable<TResult>(IEnumerator other, Task<TResult> task)
     {
-        bool next;
-        try
-        {
-            next = other.MoveNext();
-        }
-        catch (Exception e)
-        {
-            task.SetException(e);
-            yield break;
-        }
-
+        bool next = true;
         while (next)
         {
+            try
+            {
+                next = other.MoveNext();
+            }
+            catch (Exception e)
+            {
+                task.SetException(e);
+                yield break;
+            }
+
             if (other.Current is Task.TaskWaitOrder)
             {
                 var waitfor = (other.Current as Task.TaskWaitOrder).Task;
@@ -115,19 +115,18 @@ public class TaskScheduler
 
     IEnumerator WrapIEnumerable(IEnumerator other, Task task)
     {
-        bool next;
-        try
-        {
-            next = other.MoveNext();
-        }
-        catch (Exception e)
-        {
-            task.SetException(e);
-            yield break;
-        }
-
+        bool next = true;
         while (next)
         {
+            try
+            {
+                next = other.MoveNext();
+            }
+            catch (Exception e)
+            {
+                task.SetException(e);
+                yield break;
+            }
             if (other.Current is Task.TaskWaitOrder)
             {
                 var waitfor = (other.Current as Task.TaskWaitOrder).Task;

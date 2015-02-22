@@ -29,8 +29,8 @@ public class Task
 
     public TaskCreationOptions CreationOptions { get; protected set; }
     public Exception Exception { get; protected set; }
-    public bool IsCanceled { get; protected set; }
-    public bool IsCompleted { get { return Status == TaskStatus.RanToCompletion; } }
+    public bool IsCanceled { get { return Status == TaskStatus.Canceled; } }
+    public bool IsCompleted { get { return Status == TaskStatus.RanToCompletion || Status == TaskStatus.Faulted || Status == TaskStatus.Canceled; } }
     public bool IsFaulted { get { return Status == TaskStatus.Faulted; } }
     public TaskStatus Status { get; protected set; }
 
@@ -105,11 +105,17 @@ public class Task
         Start(_scheduler);
     }
 
+    public void Check()
+    {
+        if (IsFaulted)
+            throw Exception;
+    }
+
     protected void AddContinuation(Action action)
     {
         lock(_lockObject)
         {
-            if (Status == TaskStatus.RanToCompletion)
+            if (IsCompleted)
                 action();
             else
             {
@@ -133,7 +139,7 @@ public class Task
     {
         lock (_lockObject)
         {
-            if (Status == TaskStatus.Running || Status == TaskStatus.Created || Status == TaskStatus.WaitingToRun)
+            if (!IsCompleted)
             {
                 Exception = e;
                 Status = TaskStatus.Faulted;
@@ -150,7 +156,7 @@ public class Task
         List<Action> continuations;
         lock (_lockObject)
             continuations = _continuations.ToList();
-
+        Debug.Log("continue");
         foreach (var action in continuations)
             action();
     }
@@ -209,7 +215,7 @@ public class Task<TResult> : Task
     {
         lock (_lockObject)
         {
-            if (Status != TaskStatus.Running && Status != TaskStatus.Created && Status != TaskStatus.WaitingToRun)
+            if (IsCompleted)
                 throw new InvalidOperationException("Can't set result on already completed task.");
 
             _result = result;
