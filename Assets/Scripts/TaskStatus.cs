@@ -5,7 +5,7 @@ using System.Text;
 
 namespace Assets.Scripts
 {
-    enum TaskStatus
+    public enum TaskStatus
     {
         Canceled,
         Created,

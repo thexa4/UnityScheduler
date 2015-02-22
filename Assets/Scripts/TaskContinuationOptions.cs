@@ -6,7 +6,7 @@ using System.Text;
 namespace Assets.Scripts
 {
     [FlagsAttribute]
-    enum TaskContinuationOptions
+    public enum TaskContinuationOptions
     {
         None = 0,
     }
