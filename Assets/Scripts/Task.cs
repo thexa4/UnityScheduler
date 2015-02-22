@@ -85,6 +85,8 @@ public class Task
                         Status = TaskStatus.Faulted;
                 }
             }
+
+            RunContinuations();
         });
     }
 
@@ -139,21 +141,30 @@ public class Task
             else
                 throw new InvalidOperationException("Can't set exception on non-running task.");
         }
+
+        RunContinuations();
+    }
+
+    protected void RunContinuations()
+    {
+        List<Action> continuations;
+        lock (_lockObject)
+            continuations = _continuations.ToList();
+
+        foreach (var action in continuations)
+            action();
     }
 
     internal void SetCompleted()
-    {
-        List<Action> continuations;
+    {   
         lock(_lockObject)
         {
             if (Status != TaskStatus.Running && Status != TaskStatus.Created && Status != TaskStatus.WaitingToRun)
                 throw new InvalidOperationException("Can't set completion on already completed task.");
             Status = TaskStatus.RanToCompletion;
-            continuations = _continuations.ToList();
         }
 
-        foreach (var action in continuations)
-            action();
+        RunContinuations();
     }
 
     public Task ContinueWith(Action<Task> action)
@@ -200,9 +211,20 @@ public class Task<TResult> : Task
         {
             if (Status != TaskStatus.Running && Status != TaskStatus.Created && Status != TaskStatus.WaitingToRun)
                 throw new InvalidOperationException("Can't set result on already completed task.");
-            
+
             _result = result;
             Status = TaskStatus.RanToCompletion;
         }
+        RunContinuations();
+    }
+
+    public void ContinueWith(Action<Task<TResult>> action, CancellationToken cancellationToken, TaskContinuationOptions continuationOptions, TaskScheduler scheduler)
+    {
+        base.ContinueWith((t) => action(t as Task<TResult>), cancellationToken, continuationOptions, scheduler);
+    }
+
+    public void ContinueWith(Action<Task<TResult>> action)
+    {
+        ContinueWith(action, null, TaskContinuationOptions.None, _scheduler);
     }
 }
