@@ -7,6 +7,26 @@ using System.Linq;
 
 public class Task
 {
+    public class TaskResult<TResult>
+    {
+        public TaskResult(TResult result)
+        {
+            Result = result;
+        }
+
+        public TResult Result { get; private set; }
+    }
+
+    public class TaskWaitOrder
+    {
+        public TaskWaitOrder(Task task)
+        {
+            Task = task;
+        }
+
+        public Task Task { get; private set; }
+    }
+
     public TaskCreationOptions CreationOptions { get; protected set; }
     public Exception Exception { get; protected set; }
     public bool IsCanceled { get; protected set; }
@@ -16,7 +36,7 @@ public class Task
 
     protected CancellationToken _cancellationToken;
     protected Action _action;
-    protected Scheduler _scheduler;
+    protected TaskScheduler _scheduler;
     protected List<Action> _continuations = new List<Action>();
     protected object _lockObject = new object();
 
@@ -26,14 +46,14 @@ public class Task
         _action = action;
         _cancellationToken = cancellationToken;
         CreationOptions = creationOptions;
-        _scheduler = Scheduler.Default;
+        _scheduler = TaskScheduler.Default;
     }
 
     public Task(Action action, CancellationToken cancellationToken) : this(action, cancellationToken, TaskCreationOptions.None) { }
     public Task(Action action, TaskCreationOptions creationOptions) : this(action, null, creationOptions) { }
     public Task(Action action) : this(action, null, TaskCreationOptions.None) { }
 
-    public void Start(Scheduler scheduler)
+    public void Start(TaskScheduler scheduler)
     {
         lock (_lockObject)
         {
@@ -68,6 +88,16 @@ public class Task
         });
     }
 
+    public TaskWaitOrder CoWait()
+    {
+        return new TaskWaitOrder(this);
+    }
+
+    public static TaskResult<TResult> SetResult<TResult>(TResult result)
+    {
+        return new TaskResult<TResult>(result);
+    }
+
     public void Start()
     {
         Start(_scheduler);
@@ -86,7 +116,7 @@ public class Task
         }
     }
 
-    public Task ContinueWith(Action<Task> action, CancellationToken cancellationToken, TaskContinuationOptions continuationOptions, Scheduler scheduler)
+    public Task ContinueWith(Action<Task> action, CancellationToken cancellationToken, TaskContinuationOptions continuationOptions, TaskScheduler scheduler)
     {
         var task = new Task(() => action(this), cancellationToken, TaskCreationOptions.None) { _scheduler = scheduler };
         AddContinuation(() =>
@@ -130,6 +160,11 @@ public class Task
     {
         return ContinueWith(action, null, TaskContinuationOptions.None, _scheduler);
     }
+
+    public static Task Delay(TimeSpan timeSpan)
+    {
+        return TaskScheduler.Default.CreateDelay(timeSpan);
+    }
 }
 
 public class Task<TResult> : Task
@@ -158,4 +193,16 @@ public class Task<TResult> : Task
     public Task(Func<TResult> action, CancellationToken cancellationToken) : this(action, cancellationToken, TaskCreationOptions.None) { }
     public Task(Func<TResult> action, TaskCreationOptions creationOptions) : this(action, null, creationOptions) { }
     public Task(Func<TResult> action) : this(action, null, TaskCreationOptions.None) { }
+
+    internal void SetResult(TResult result)
+    {
+        lock (_lockObject)
+        {
+            if (Status != TaskStatus.Running && Status != TaskStatus.Created && Status != TaskStatus.WaitingToRun)
+                throw new InvalidOperationException("Can't set result on already completed task.");
+            
+            _result = result;
+            Status = TaskStatus.RanToCompletion;
+        }
+    }
 }
