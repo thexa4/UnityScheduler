@@ -79,7 +79,7 @@ public class Task
     protected List<Action> _continuations = new List<Action>();
     protected object _lockObject = new object();
 
-    internal Action Execution { get; protected set; }
+    internal Action Execution { get; set; }
 
     /// <summary>
     /// Creates a new Task
