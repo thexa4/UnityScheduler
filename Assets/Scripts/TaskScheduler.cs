@@ -4,8 +4,14 @@ using System.Collections.Generic;
 using System;
 using System.Linq;
 
-public class TaskScheduler
+/// <summary>
+/// Schedules Task execution on the Unity thread
+/// </summary>
+public class TaskScheduler : ITaskScheduler
 {
+    /// <summary>
+    /// The default (first) instance of this TaskScheduler
+    /// </summary>
     public static TaskScheduler Default
     {
         get
@@ -17,8 +23,9 @@ public class TaskScheduler
     }
     private static TaskScheduler _instance;
 
-    
-
+    /// <summary>
+    /// Wether this TaskScheduler is still running
+    /// </summary>
     public bool IsRunning
     {
         get { return _running; }
@@ -33,6 +40,10 @@ public class TaskScheduler
     private bool _running;
     private List<Action> _queue = new List<Action>();
 
+    /// <summary>
+    /// Creates a new TaskScheduler and binds it to a MonoBehaviour container
+    /// </summary>
+    /// <param name="container">The MonoBehaviour to bind to</param>
     public TaskScheduler(MonoBehaviour container)
     {
         _container = container;
@@ -44,6 +55,11 @@ public class TaskScheduler
         container.StartCoroutine(ProcessTasks());
     }
 
+    /// <summary>
+    /// Creates a Delay Task on the Unity thread
+    /// </summary>
+    /// <param name="timeSpan">The TimeSpan to delay for</param>
+    /// <returns>A Task representing the delay</returns>
     internal Task CreateDelay(TimeSpan timeSpan)
     {
         return Run(Sleep(timeSpan));
@@ -54,10 +70,19 @@ public class TaskScheduler
         yield return new WaitForSeconds((float)timeSpan.TotalSeconds);
     }
 
-    internal void Queue(Action action)
+    private void Queue(Action action)
     {
         lock (_queue)
             _queue.Add(action);
+    }
+
+    /// <summary>
+    /// Schedules a Task to run on this TaskScheduler
+    /// </summary>
+    /// <param name="task"></param>
+    public void QueueTask(Task task)
+    {
+        Queue(task.Execution);
     }
 
     IEnumerator ProcessTasks()
@@ -139,13 +164,23 @@ public class TaskScheduler
         task.SetCompleted();
     }
 
+    /// <summary>
+    /// Runs a IEnumerator on the Unity thread
+    /// </summary>
+    /// <typeparam name="TResult">The return type of the IEnumerator</typeparam>
+    /// <param name="enumerator">The enumerator to run</param>
+    /// <returns>A Task representing the execution</returns>
     public Task<TResult> Run<TResult>(IEnumerator enumerator)
     {
         var result = new Task<TResult>(() => default(TResult));
         _container.StartCoroutine(WrapIEnumerable(enumerator, result));
         return result;
     }
-
+    /// <summary>
+    /// Runs a IEnumerator on the Unity thread
+    /// </summary>
+    /// <param name="enumerator">The enumerator to run</param>
+    /// <returns>A Task representing the execution</returns>
     public Task Run(IEnumerator enumerator)
     {
         var result = new Task(() => {});
